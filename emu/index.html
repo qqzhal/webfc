@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head><script>window.EJS_MINJS_VER="96d8f8dc"</script><script>window.MUSIC_CONFIG_VER="816b9369"</script><script>window.EC_LIST_VER="c8f66663"</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>FC 在线模拟器</title>
+  <link rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0e14'/%3E%3Ctext x='16' y='22' font-size='14' font-family='Arial' font-weight='bold' fill='%234488ff' text-anchor='middle'%3EFC%3C/text%3E%3C/svg%3E">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      background: #0a0e14;
+      color: #e8eef5;
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+      overflow: hidden;
+    }
+
+    /* ---------- 载入层（未加载游戏时显示） ---------- */
+    #loader-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(48, 92, 220, 0.14), transparent),
+        #0a0e14;
+    }
+
+    .loader-card {
+      text-align: center;
+      background: rgba(16, 22, 32, 0.92);
+      border: 1px solid rgba(72, 120, 220, 0.25);
+      border-radius: 14px;
+      padding: 36px 44px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+      min-width: 300px;
+      max-width: min(480px, calc(100vw - 32px));
+    }
+
+    .logo {
+      font-size: 44px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #58a6ff, #2e6bff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1.1;
+    }
+
+    .sub {
+      margin-top: 6px;
+      font-size: 14px;
+      color: #8fa3b8;
+    }
+
+    .pick-btn {
+      display: inline-block;
+      margin-top: 26px;
+      padding: 12px 34px;
+      font-size: 17px;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(135deg, #2e6bff, #1e4fd6);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform .12s, box-shadow .12s;
+    }
+
+    .pick-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(46, 107, 255, 0.35);
+    }
+
+    .hint {
+      margin-top: 18px;
+      font-size: 12.5px;
+      color: #6d8098;
+      line-height: 1.7;
+    }
+
+    .hint b {
+      color: #9db4cc;
+      font-weight: 600;
+    }
+
+    /* ---------- 载入层：手机优先（大按钮、提示精简、缓存列表填满剩余高度） ---------- */
+    #loader-screen { padding: 10px; }
+
+    .loader-card {
+      display: flex;
+      flex-direction: column;
+      width: min(560px, 100%);
+      max-width: min(560px, 100%);
+      max-height: calc(100dvh - 20px);
+      padding: 18px 16px 14px;
+      min-width: 0;
+      text-align: left;
+    }
+
+    .logo { font-size: 28px; text-align: center; letter-spacing: 1px; }
+    .sub { display: none; }
+
+    .pick-btn {
+      display: block;
+      width: 100%;
+      margin-top: 14px;
+      padding: 15px 16px;
+      font-size: 16.5px;
+      border-radius: 12px;
+    }
+
+    .hint { margin-top: 10px; font-size: 12px; color: #6d8098; line-height: 1.5; text-align: center; }
+    .hint-drag { display: none; }
+    /* PC 端键位说明：只在鼠标/触控板（fine pointer）设备显示，手机平板不占地方 */
+    .keyhint { display: none; margin-top: 12px; padding: 10px 12px; border: 1px solid #e6ebf3; border-radius: 10px; background: #f7f9fc; text-align: left; }
+    .keyhint-title { font-size: 12px; color: #7a8797; margin-bottom: 6px; }
+    .keyhint-row { font-size: 12.5px; color: #2b3442; line-height: 2; }
+    .keyhint-row b { display: inline-block; min-width: 3.6em; color: #4a5a6a; font-weight: 600; }
+    .keyhint kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; margin: 0 2px; border: 1px solid #d5dde8; border-bottom-width: 2px; border-radius: 5px; background: #fff; font-family: inherit; font-size: 12px; color: #1f2937; text-align: center; }
+    @media (hover: hover) and (pointer: fine) { .keyhint { display: block; } }
+    @media (hover: hover) and (pointer: fine) { .hint-drag { display: inline; } }
+
+    #cachedArea {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(72, 120, 220, .2);
+    }
+
+    .cached-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .cached-title { flex: 1; font-size: 13px; color: #8fa3b8; }
+    /* 窄屏：标题独占一行，两个按钮排到下一行，避免标题被挤成两行 */
+    @media (max-width: 520px) {
+      .cached-head { flex-wrap: wrap; row-gap: 8px; }
+      .cached-title { flex: 1 1 100%; }
+    }
+
+    .cached-add {
+      flex-shrink: 0;
+      padding: 7px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #cfe2ff;
+      background: rgba(72, 120, 220, .18);
+      border: 1px solid rgba(72, 120, 220, .45);
+      border-radius: 8px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    #cachedList:empty { flex: 0 0 auto; }
+
+    #cachedList {
+      flex: 1 1 auto;
+      min-height: 0;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #cachedEmpty { display: none; flex: 1 1 auto; align-items: center; justify-content: center; text-align: center;
+                   font-size: 13px; color: #6d8098; line-height: 1.6; padding: 12px 16px; }
+    #cacheMsg { display: none; margin-top: 6px; font-size: 12px; }
+
+    /* 桌面：卡片自适应高度，列表至少留 260px（约 7 个游戏） */
+    @media (min-width: 701px) { #cachedList { min-height: 260px; } }
+
+    /* 手机：卡片占满屏高，缓存列表自然占满剩余空间 */
+    @media (max-width: 700px) {
+      .loader-card { height: calc(100dvh - 20px); padding: 16px 14px 12px; }
+      .logo { font-size: 22px; }
+    }
+    #romInput {
+      display: none;
+    }
+
+    /* 拖拽时高亮 */
+    body.dragging #loader-screen::after {
+      content: "松开以载入游戏";
+      position: absolute;
+      inset: 12px;
+      border: 2px dashed #58a6ff;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: #58a6ff;
+      background: rgba(10, 16, 28, 0.82);
+      z-index: 101;
+    }
+
+    /* ---------- 游戏容器 ---------- */
+    #game-wrap {
+      display: none;
+      width: 100%;
+      height: 100%;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+
+    #game {
+      width: 100%;
+      height: 100%;
+      max-width: 1280px;
+      aspect-ratio: 4 / 3;
+      max-height: 100%;
+    }
+
+    /* ---------- 虚拟手柄放大（手机端触控）：页面 CSS 覆盖，不修改 EmulatorJS 文件 ----------
+       用 zoom（布局级缩放）而不是 transform:scale——scale 会让触摸坐标与布局尺寸分裂更乱。
+       调整大小只需改 --vgScale（如 1.5），三个区一起缩放。
+       注意：方向键的命中判定在 zoom 下会失准（rect 是缩放后的尺寸、clientWidth 仍是布局尺寸），
+       这里不处理，交给启动后注入的 fixDpadHitBox() 把两者对齐（见页面脚本）。 */
+    #game-wrap { --vgScale: 1.4; }
+    .ejs_virtualGamepad_left,
+    .ejs_virtualGamepad_right,
+    .ejs_virtualGamepad_bottom { zoom: var(--vgScale, 1.4) !important; }
+    .ejs_virtualGamepad_parent { bottom: -5px !important; }
+  </style>
+</head>
+
+<body>
+  <!-- 载入层：选择 / 拖拽 ROM -->
+  <div id="loader-screen">
+    <div class="loader-card">
+      <div class="logo">FAMILY COMPUTER</div>
+      <div class="sub">FC 在线模拟器</div>
+      <button class="pick-btn" id="pickBtn" type="button">选择游戏文件</button>
+      <div class="keyhint">
+        <div class="keyhint-title">键盘操作（电脑端；手机端用屏幕手柄）</div>
+        <div class="keyhint-row"><b>方向</b><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+        <div class="keyhint-row"><b>按键</b>A = <kbd>L</kbd>　B = <kbd>K</kbd>　选择 = <kbd>G</kbd>　开始 = <kbd>H</kbd></div>
+        <div class="keyhint-row"><b>快捷</b><kbd>1</kbd> 快存　<kbd>2</kbd> 快读　<kbd>3</kbd> 切槽　<kbd>小键盘 +/-</kbd> 倍速　<kbd>小键盘 0</kbd> 慢动作</div>
+      </div>
+      <div class="hint">
+        支持 <b>.nes / .fds / .unf / .unif / .zip / .7z</b><span class="hint-drag"> · 也可拖拽进来</span>
+      </div>
+      <div id="cachedArea">
+        <div class="cached-head">
+          <div id="cachedTitle" class="cached-title">缓存的游戏（点击即玩）</div>
+          <button id="ct2CacheBtn" type="button" class="cached-add" title="缓存《天使之翼2》">天使之翼2</button>
+          <button id="addCacheBtn" type="button" class="cached-add" title="把本地 ROM 加进缓存（可多选，只加缓存不启动）">＋ 添加</button>
+        </div>
+        <ul id="cachedList"></ul>
+        <div id="cachedEmpty">
+          还没有缓存游戏。点「＋ 添加」把本地 ROM 存进缓存，之后从列表一键开始（「选择游戏文件」只启动、不入缓存）。
+        </div>
+        <div id="cacheMsg"></div>
+      </div>
+    </div>
+  </div>
+  <input type="file" id="romInput" accept=".nes,.fds,.unf,.unif,.zip,.7z">
+  <input type="file" id="cacheInput" accept=".nes,.fds,.unf,.unif,.zip,.7z" multiple hidden>
+
+  <!-- 断网兜底：把 cores/reports/*.json 存一份到 localStorage，断网时用它顶上，
+       让 EmulatorJS 仍拿到 buildStart、命中已缓存的核心（详见 emu/js/core-offline.js）。 -->
+<script src="js/core-offline.js?v=2481fc9d"></script>
+
+<!-- 核心包就是 data/cores/ 下的静态文件，浏览器按 buildStart 版本号缓存。 -->
+  <script src="js/quickbar.js?v=aa67b7cb"></script>
+<script src="js/savemgr.js?v=8660dc33"></script>
+
+  <script src="js/sidebar.js?v=fef46b41"></script>
+
+  <script src="js/sidebar/ct2.js?v=d4e1a701"></script>
+  <script src="js/ec-cheat.js?v=f6aaff35"></script>
+
+  <!-- 游戏容器 -->
+  <div id="game-wrap">
+    <div id="game"></div>
+  </div>
+
+  <script>
+    (function () {
+      var romInput = document.getElementById("romInput");
+      var pickBtn = document.getElementById("pickBtn");
+      var started = false;
+
+      // 拖拽高亮
+      var dragDepth = 0;
+      document.addEventListener("dragenter", function (e) {
+        e.preventDefault();
+        dragDepth++;
+        document.body.classList.add("dragging");
+      });
+      document.addEventListener("dragleave", function (e) {
+        e.preventDefault();
+        if (--dragDepth <= 0) {
+          dragDepth = 0;
+          document.body.classList.remove("dragging");
+        }
+      });
+      document.addEventListener("dragover", function (e) { e.preventDefault(); });
+      document.addEventListener("drop", function (e) {
+        e.preventDefault();
+        dragDepth = 0;
+        document.body.classList.remove("dragging");
+        if (started) {
+          // 已有游戏运行：提示刷新后重新载入
+          if (confirm("检测到新的游戏文件。\n模拟器一次只能载入一个游戏，点击确定刷新页面，然后重新选择该文件。")) {
+            location.reload();
+          }
+          return;
+        }
+        var f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) launch(f);                      // 拖进来只启动；要入缓存用「＋ 添加」
+      });
+
+      pickBtn.addEventListener("click", function () { romInput.click(); });
+      romInput.addEventListener("change", function () {
+        if (romInput.files && romInput.files[0]) {
+          var f = romInput.files[0];
+          romInput.value = "";               // 清掉，允许再次选同一个文件
+          launch(f);                          // 只启动；要入缓存用「＋ 添加」
+        }
+      });
+
+      /* ---------- 缓存的游戏（IndexedDB: GameSavesDB/RomStore） ---------- */
+      var cachedArea = document.getElementById("cachedArea");
+      var cachedList = document.getElementById("cachedList");
+      var cachedTitle = document.getElementById("cachedTitle");
+      var cachedEmpty = document.getElementById("cachedEmpty");
+      var cacheMsgEl = document.getElementById("cacheMsg");
+
+      function openRomStoreDB() {
+        return new Promise(function (resolve, reject) {
+          function hook(req) {
+            req.onupgradeneeded = function (e) {
+              var db = e.target.result;
+              if (!db.objectStoreNames.contains("RomStore")) {
+                db.createObjectStore("RomStore", { keyPath: "id" });
+              }
+            };
+            return req;
+          }
+          var probe = hook(indexedDB.open("GameSavesDB"));
+          probe.onsuccess = function (e) {
+            var db = e.target.result;
+            if (db.objectStoreNames.contains("RomStore")) { resolve(db); return; }
+            var next = db.version + 1;
+            db.close();
+            var req = hook(indexedDB.open("GameSavesDB", next));
+            req.onsuccess = function (ev) { resolve(ev.target.result); };
+            req.onerror = function () { reject(new Error("IndexedDB 打开失败")); };
+          };
+          probe.onerror = function () { reject(new Error("IndexedDB 打开失败")); };
+        });
+      }
+
+      // 遍历 RomStore 返回 [{id, name, size}]，不取 data 避免整库载入内存
+      function listCachedGames() {
+        return openRomStoreDB().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(["RomStore"], "readonly");
+            var out = [];
+            var req = tx.objectStore("RomStore").openCursor();
+            req.onsuccess = function (e) {
+              var cursor = e.target.result;
+              if (!cursor) return;
+              var rec = cursor.value;
+              var size = 0;
+              if (rec.data) {
+                size = rec.data.byteLength !== undefined ? rec.data.byteLength : rec.data.length;
+              }
+              out.push({ id: rec.id, name: rec.name || rec.id, size: size });
+              cursor.continue();
+            };
+            tx.oncomplete = function () {
+              out.sort(function (a, b) { return a.name.localeCompare(b.name, "zh-Hans-CN"); });
+              resolve(out);
+            };
+            tx.onerror = function () { reject(tx.error || new Error("读取缓存列表失败")); };
+          });
+        });
+      }
+
+      function deleteCachedGame(id) {
+        return openRomStoreDB().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(["RomStore"], "readwrite");
+            tx.objectStore("RomStore").delete(id);
+            tx.oncomplete = function () { resolve(); };
+            tx.onerror = function () { reject(tx.error || new Error("删除失败")); };
+          });
+        });
+      }
+
+      function playCachedGame(item) {
+        openRomStoreDB().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(["RomStore"], "readonly");
+            var req = tx.objectStore("RomStore").get(item.id);
+            tx.oncomplete = function () { resolve(req.result); };
+            tx.onerror = function () { reject(tx.error || new Error("读取游戏失败")); };
+          });
+        }).then(function (rec) {
+          if (!rec) throw new Error("缓存记录不存在");
+          launch(new File([rec.data], rec.name, { type: "application/octet-stream" }));
+        }).catch(function (e) {
+          alert("载入缓存游戏失败：" + (e && e.message ? e.message : e));
+        });
+      }
+
+      function renderCachedGames() {
+        listCachedGames().then(function (items) {
+          cachedList.innerHTML = "";
+          var title = "缓存的游戏（点击即玩）";
+          if (items.length) {
+            var total = 0;
+            for (var k = 0; k < items.length; k++) total += items[k].size || 0;
+            title = "缓存的游戏（" + items.length + " 个 · " + (total / 1048576).toFixed(1) + "M，点击即玩）";
+          }
+          cachedTitle.textContent = title;
+          cachedEmpty.style.display = items.length ? "none" : "flex";
+          items.forEach(function (item) {
+            var li = document.createElement("li");
+            li.style.cssText =
+              "display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:7px;cursor:pointer;transition:background .12s;";
+            li.addEventListener("mouseenter", function () { li.style.background = "rgba(72,120,220,.14)"; });
+            li.addEventListener("mouseleave", function () { li.style.background = "transparent"; });
+
+            var nm = document.createElement("span");
+            nm.textContent = item.name.replace(/\.[^.]+$/, "");
+            nm.style.cssText = "flex:1;font-size:14px;color:#dbe6f2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+            var sz = document.createElement("span");
+            sz.textContent = (item.size / 1048576).toFixed(1) + "M";
+            sz.style.cssText = "font-size:11.5px;color:#5c7089;flex-shrink:0;";
+            var del = document.createElement("span");
+            del.textContent = "×";
+            del.title = "删除缓存";
+            del.style.cssText =
+              "flex-shrink:0;width:20px;height:20px;line-height:18px;text-align:center;border-radius:50%;color:#8fa3b8;font-size:15px;";
+            del.addEventListener("mouseenter", function () { del.style.background = "#b3452e"; del.style.color = "#fff"; });
+            del.addEventListener("mouseleave", function () { del.style.background = "transparent"; del.style.color = "#8fa3b8"; });
+            del.addEventListener("click", function (ev) {
+              ev.stopPropagation();
+              if (!confirm("删除缓存游戏「" + item.name.replace(/\.[^.]+$/, "") + "」？")) return;
+              deleteCachedGame(item.id).then(renderCachedGames);
+            });
+
+            li.appendChild(nm);
+            li.appendChild(sz);
+            li.appendChild(del);
+            li.addEventListener("click", function () { playCachedGame(item); });
+            cachedList.appendChild(li);
+          });
+        }).catch(function () {
+          cachedEmpty.style.display = "block";
+          cachedEmpty.textContent = "读取缓存游戏列表失败（浏览器隐私模式或 IndexedDB 不可用）。";
+        });
+      }
+
+/* ---------- 添加缓存游戏：选一个本地 ROM 存进 IndexedDB
+   记录格式 {id: 文件名去扩展名, name: 完整文件名, data: Uint8Array}，
+   同名会互相覆盖，列表里可单独删除。 */
+      var cacheMsgTimer = null;
+      function cacheMsg(text, ok) {
+        cacheMsgEl.textContent = text;
+        cacheMsgEl.style.color = ok ? "#6fdba0" : "#e0a06a";
+        cacheMsgEl.style.display = "block";
+        if (cacheMsgTimer) clearTimeout(cacheMsgTimer);
+        cacheMsgTimer = setTimeout(function () { cacheMsgEl.style.display = "none"; }, 4000);
+      }
+
+      function addCachedGame(file, btn) {
+        btn = btn || null;
+        var id = file.name.replace(/\.[^.]+$/, "");
+        var origLabel = btn ? btn.textContent : "";
+        if (btn) { btn.disabled = true; btn.textContent = "…"; }
+        return openRomStoreDB().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            // 先查同名（id 规则：文件名去扩展名）
+            var check = db.transaction(["RomStore"], "readonly").objectStore("RomStore").get(id);
+            check.onsuccess = function () {
+              // FC：同名直接覆盖，不询问（底部列表可单独删除）
+              var reader = new FileReader();
+              reader.onload = function () {
+                var data = new Uint8Array(reader.result);
+                var tx = db.transaction(["RomStore"], "readwrite");
+                tx.objectStore("RomStore").put({ id: id, name: file.name, data: data });
+                tx.oncomplete = function () { resolve({ name: file.name, size: data.byteLength }); };
+                tx.onerror = function () { reject(tx.error || new Error("写入缓存失败")); };
+              };
+              reader.onerror = function () { reject(new Error("读取文件失败")); };
+              reader.readAsArrayBuffer(file);
+            };
+            check.onerror = function () { reject(check.error || new Error("读取缓存失败")); };
+          });
+        }).then(function (r) {
+          cacheMsg("已缓存：" + r.name + "（" + (r.size / 1048576).toFixed(1) + "M），点列表即可开始", true);
+          renderCachedGames();
+        }).catch(function (e) {
+          if (e && e.message !== "cancel") cacheMsg("添加缓存失败：" + (e.message || e), false);
+        }).then(function () {
+          if (btn) btn.disabled = false;
+          if (btn) btn.textContent = origLabel;
+        });
+      }
+
+
+      // 「＋ 添加」：选本地 ROM 进缓存（可多选），不启动游戏
+      var addCacheBtn = document.getElementById("addCacheBtn");
+      var cacheInput = document.getElementById("cacheInput");
+      if (addCacheBtn && cacheInput) {
+        addCacheBtn.addEventListener("click", function () {
+          if (addCacheBtn.disabled) return;
+          cacheInput.click();
+        });
+        cacheInput.addEventListener("change", function () {
+          var files = Array.prototype.slice.call(cacheInput.files || []);
+          cacheInput.value = "";                 // 清掉，允许再次选同一个文件
+          if (!files.length) return;
+          addCacheBtn.disabled = true;
+          addCacheBtn.textContent = "…";
+          var chain = Promise.resolve();
+          files.forEach(function (file) {
+            chain = chain.then(function () { return addCachedGame(file); });
+          });
+          chain.then(function () {
+            addCacheBtn.disabled = false;
+            addCacheBtn.textContent = "＋ 添加";
+            if (files.length > 1) cacheMsg("已添加 " + files.length + " 个文件到缓存", true);
+          });
+        });
+      }
+
+      // 取《天使之翼2》ROM：先试静态直链（GitHub Pages 这类纯静态托管能直接给 .nes），
+      // 直链拿不到就提示用户改用「＋ 添加」导入本地文件。
+      function fetchCt2Rom() {
+        function grab(url) {
+          return fetch(url, { cache: "no-store" })
+            .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.blob(); })
+            .then(function (blob) {
+              if (!blob || blob.size < 16) throw new Error("下载内容为空");
+              // 校验 iNES 头（4E 45 53 1A），避免把 404 页面/HTML 当成 ROM 缓存进去
+              return blob.slice(0, 4).arrayBuffer().then(function (h) {
+                var b = new Uint8Array(h);
+                if (b.length < 4 || b[0] !== 0x4e || b[1] !== 0x45 || b[2] !== 0x53 || b[3] !== 0x1a) {
+                  throw new Error("不是有效的 .nes 文件");
+                }
+                return blob;
+              });
+            });
+        }
+        return grab("roms/" + encodeURIComponent("天使之翼2.nes")).catch(function (e1) {
+          cacheMsg("直链 .nes 不可用（" + (e1 && e1.message ? e1.message : e1) + "），请改用「＋ 添加」导入本地 ROM。", false);
+          throw e1;
+        });
+      }
+
+      // 「天使之翼2」按钮：有缓存先问一句，避免误覆盖
+      var ct2CacheBtn = document.getElementById("ct2CacheBtn");
+      if (ct2CacheBtn) {
+        ct2CacheBtn.addEventListener("click", function () {
+          if (ct2CacheBtn.disabled) return;
+          var id = "天使之翼2";
+          ct2CacheBtn.disabled = true;
+          openRomStoreDB().then(function (db) {
+            return new Promise(function (resolve) {
+              var check = db.transaction(["RomStore"], "readonly").objectStore("RomStore").get(id);
+              check.onsuccess = function () { resolve(!!check.result); };
+              check.onerror = function () { resolve(false); };
+            });
+          }).then(function (exists) {
+            if (exists && !confirm("已有《天使之翼2》缓存，重新缓存会覆盖原来的文件，继续吗？")) {
+              cacheMsg("已取消", false);
+              return null;
+            }
+            cacheMsg("正在缓存《天使之翼2》…", true);
+            return fetchCt2Rom().then(function (blob) {
+              cacheMsg("下载完成（" + (blob.size / 1048576).toFixed(1) + "M），正在写入缓存…", true);
+              var f = new File([blob], "天使之翼2.nes", { type: "application/octet-stream" });
+              return addCachedGame(f, ct2CacheBtn);
+            });
+          }).catch(function (e) {
+            cacheMsg("《天使之翼2》缓存失败：" + (e && e.message ? e.message : e), false);
+          }).then(function () {
+            ct2CacheBtn.disabled = false;
+          });
+        });
+      }
+
+      renderCachedGames();
+
+      /* 载入界面（还没进游戏）就先显示右侧悬浮条：云同步「传 / 取」不依赖游戏，
+         免得每次想同步都得随便进一个游戏；存 / 读 / 金 在没游戏时会提示「请先载入游戏」。 */
+      if (window.QuickBar && QuickBar.showIdle) QuickBar.showIdle();
+
+      /* ---------- 默认按键（EmulatorJS 控制设置保存在 localStorage 的
+         ejs-1-nes-<游戏名>-settings；仅在该游戏从未配置过时写入默认值，
+         用户在模拟器里自定义后此处不再覆盖） ---------- */
+      // 桌面端（有鼠标/触控板）默认隐藏虚拟手柄；触屏设备仍然默认显示。
+      // 只影响“首次默认值”——已经存过设置的游戏沿用用户自己的选择，不覆盖。
+      var IS_DESKTOP_DEVICE = (function () {
+        try { return !!(window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches); }
+        catch (e) { return true; }
+      })();
+      var DEFAULT_SETTINGS = {
+        controlSettings: {
+          0: { // 玩家1：A=L  B=K  选择=G  开始=H  方向=WASD
+                 //       快存=1  快读=2  切槽=3  慢动作=小键盘0（小键盘 +/- 已被 quickbar.js 接管为倍速档位）
+            0: { value: 75 },   // B  = K
+            8: { value: 76 },   // A  = L
+            2: { value: 71 },   // Select = G
+            3: { value: 72 },   // Start  = H
+            4: { value: 87 },   // Up   = W
+            5: { value: 83 },   // Down = S
+            6: { value: 65 },   // Left = A
+            7: { value: 68 },   // Right = D
+            24: { value: 49 },  // 快存 = 1
+            25: { value: 50 },  // 快读 = 2
+            26: { value: 51 },  // 切槽 = 3
+            27: { value: 107 }, // 快进 = 小键盘+（quickbar.js 会先截获这两个键做倍速档位）
+            28: { value: 109 }, // 快退 = 小键盘-
+            29: { value: 96 }   // 慢动作 = 小键盘0
+          },
+          1: {},
+          2: {},
+          3: {}
+        },
+        settings: { "virtual-gamepad": (IS_DESKTOP_DEVICE ? "disabled" : "enabled"), "save-save-interval": "0", "fps": "hide", "menu-bar-button": "hidden" },
+        cheats: []
+      };
+
+      function ensureDefaultControls(gameName) {
+        try {
+          var key = "ejs-1-nes-" + gameName + "-settings";
+          if (!localStorage.getItem(key)) {
+            localStorage.setItem(key, JSON.stringify(DEFAULT_SETTINGS));
+          }
+        } catch (e) { /* localStorage 不可用时跳过 */ }
+      }
+
+      /* ---------- 方向键命中坐标修正（虚拟手柄 zoom 放大的副作用） ----------
+         EmulatorJS 的 dpad 触控判定算的是：
+             dx = clientX - getBoundingClientRect().left - clientWidth / 2
+         CSS zoom 只改渲染：getBoundingClientRect() 返回缩放后的尺寸（125 × 1.4 = 175），
+         而 clientWidth / clientHeight 仍是布局尺寸（125）——判定中心因此比可视中心
+         偏左上 (175-125)/2 = 25px，表现就是“按左容易连带按下、按上容易连带按右”。
+         这里不改 EmulatorJS 文件，只让该元素的 clientWidth/clientHeight 跟着渲染尺寸走，
+         两个坐标空间就对齐了；放大倍数、左右手模式都不用额外处理。 */
+      function fixDpadHitBox(dpad) {
+        if (!dpad || dpad.dataset.mdHitFixed) return;
+        dpad.dataset.mdHitFixed = "1";
+        ["clientWidth", "clientHeight"].forEach(function (prop) {
+          Object.defineProperty(dpad, prop, {
+            configurable: true,
+            get: function () {
+              var r = this.getBoundingClientRect();
+              return prop === "clientWidth" ? r.width : r.height;
+            }
+          });
+        });
+      }
+
+      /* FC 的 ROM 直接交给核心（.nes/.fds 等裸 ROM，没有需要预处理的外壳格式） */
+      function launch(file) {
+        if (started) return;
+        started = true;
+        startEmulator(file);
+      }
+
+      function startEmulator(file) {
+        var name = file.name.replace(/\.[^.]+$/, "");
+
+        var EJS = window;
+        EJS.EJS_player = "#game";
+        EJS.EJS_core = "nes";
+        EJS.EJS_gameUrl = URL.createObjectURL(file);
+        EJS.EJS_gameName = name;
+        EJS.EJS_pathtodata = "data/";
+        EJS.EJS_language = "zh-CN";
+        EJS.EJS_startOnLoaded = true;
+        EJS.EJS_backgroundColor = "#000000";
+        EJS.EJS_volume = 0.5;
+        EJS.EJS_defaultOptions = { "save-state-location": "browser" };
+
+        /* 底栏 / 右键菜单按钮开关（EmulatorJS 官方配置口，loader.js 读 window.EJS_Buttons）。
+           现在默认全隐藏——我们的存/读/槽/传/取 和 全屏 都在悬浮条里，不用自带的那些；
+           想恢复某个按钮：把它那一行删掉（或改 true），想加自定义按钮看文件末尾注释。
+           可用键：playPause play pause restart settings fullscreen enterFullscreen exitFullscreen
+                   mute unmute volumeSlider saveState loadState saveSavFiles loadSavFiles
+                   cacheManager gamepad cheat netplay diskButton exitEmulation
+                   screenshot screenRecord quickSave quickLoad contextMenuButton（以及 rightClick 选项） */
+        EJS.EJS_Buttons = {
+          playPause: true,           // 暂停（Play/Pause）
+          restart: true,             // 重新开始
+          gamepad: true,             // 控制设置（手柄/键位面板）
+          mute: true,                // 音量图标
+          volumeSlider: true,        // 音量条
+          screenshot: true,         // 右键菜单：截图
+
+          settings: false,            // 设置
+          fullscreen: false,          // 进入全屏
+          saveState: false,          // EmulatorJS 自带存档（用悬浮条 存/读/槽）
+          loadState: false,
+          saveSavFiles: false,       // 电池存档导入/导出
+          loadSavFiles: false,
+          cacheManager: false,       // 核心/状态缓存管理器
+          cheat: false,              // EmulatorJS 金手指面板（用左侧「金」）
+          netplay: false,            // 联机
+          diskButton: false,         // 换盘（CD 类平台才用）
+          exitEmulation: false,      // 退出
+          
+          screenRecord: false,       // 右键菜单：录屏
+          quickSave: false,          // 右键菜单：快存/快读
+          quickLoad: false,
+          contextMenuButton: false,  // ☰（右键菜单整体禁用，这个按钮点开也是空的）
+          rightClick: false,
+        };
+        EJS.EJS_onGameStart = function () {
+          // 立刻收起 EmulatorJS 的菜单栏：它默认会在开局后显示约 3 秒（源码 startGame 里 menu.open()），
+          // 这里在 start 事件里直接 close()，做到开局即无遮拦；用户仍可点右上角 ☰ / 鼠标移到画面上唤出
+          try { EJS_emulator.menu.close(); } catch (e) { }
+          // ☰ 那个「菜单」按钮：因为设了 rightClick:false，EmulatorJS 的隐藏判断会被短路，
+          // 它点开又是空菜单，直接按文字隐藏掉（本地化固定 zh-CN，抓「菜单」二字）。
+          var menuHideTries = 0;
+          var menuHideTimer = setInterval(function () {
+            menuHideTries++;
+            var hit = false;
+            Array.prototype.forEach.call(document.querySelectorAll(".ejs_menu_bar .ejs_menu_button"), function (b) {
+              if ((b.textContent || "").trim() === "菜单") { b.style.display = "none"; hit = true; }
+            });
+            if (hit || menuHideTries > 25) clearInterval(menuHideTimer);
+          }, 200);
+          // 游戏启动后把标题带上游戏名、显示悬浮快捷档条
+          document.title = name + " - FC 在线模拟器";
+          QuickBar.onGameStart();
+          // 等 EmulatorJS 建好虚拟手柄 DOM 后再动手：
+          // 1) 修正方向键命中坐标（fixDpadHitBox）
+          // 2) 虚拟手柄精简：去掉「减速」（FC 用不上，留着挤占底部空间）
+          // 3) 加速键位置：EmulatorJS 默认 left:-35px / top:50px（底栏中间组），
+          //    这里挪到 left:125px / top:0（右手拇指按加速、左手控制方向；想微调改这两行）
+          var VG_FAST_LEFT = "125px";
+          var VG_FAST_TOP = "0px";
+          var vgTries = 0;
+          var vgTimer = setInterval(function () {
+            vgTries++;
+            var pad = document.querySelector(".ejs_dpad_main");
+            var btns = document.querySelectorAll(".ejs_virtualGamepad_bottom .ejs_virtualGamepad_button");
+            if (!pad && !btns.length) {
+              if (vgTries > 40) clearInterval(vgTimer);
+              return;
+            }
+            if (pad) fixDpadHitBox(pad);
+            btns.forEach(function (b) {
+              var t = b.textContent.trim();
+              if (t === "减速" || t === "Slow") b.remove();
+            });
+            var fast = document.querySelector(".ejs_virtualGamepad_bottom .b_speed_fast");
+            if (fast) {
+              fast.style.left = VG_FAST_LEFT;
+              fast.style.top = VG_FAST_TOP;
+            }
+            clearInterval(vgTimer);
+          }, 400);
+        };
+
+        var wrap = document.getElementById("game-wrap");
+        document.getElementById("loader-screen").style.display = "none";
+        wrap.style.display = "flex";
+
+        ensureDefaultControls(name);
+
+        var s = document.createElement("script");
+        s.src = "data/loader.js?v=6340825a";
+        document.body.appendChild(s);
+      }
+    })();
+  </script>
+
+  <script>
+    /* ---------- 空闲预取：把「点游戏之后才去取」的资源提前放进浏览器缓存 ----------
+       emulator.min.js / emulator.min.css / 语言包 / 7z 解压器 每次启动都要用，
+       这里趁页面空闲先取一遍，首次点击少等这些下载。
+       注意 1：预取的 URL 必须和真正加载时**完全一致**（含 ?v=），否则是两份缓存，
+               预取等于白下——emulator.min.js 就是 loader.js 用 ?v=EJS_MINJS_VER 加载的。
+       注意 2：核心包（data/cores/*.data）故意不预取 —— 它体积大，进游戏时按需下载一次
+               且响应是 no-store，预取只会白下 1MB；靠 EmulatorJS 自己的 IndexedDB 缓存
+               （同一 buildStart 只下载一次）即可。
+       只做预取，不改 EmulatorJS 的行为；任何失败都静默跳过。 */
+    (function () {
+      var URLS = [
+        "data/emulator.min.js" + (window.EJS_MINJS_VER ? "?v=" + window.EJS_MINJS_VER : ""),
+        "data/emulator.min.css",
+        "data/localization/zh-CN.json",
+        "data/compression/extract7z.js",
+        "data/cores/reports/fceumm.json"
+      ];
+      function run() {
+        // 省流量模式 / 2G 网络下不偷跑
+        var c = navigator.connection || {};
+        if (c.saveData || /(^|-)2g$/.test(c.effectiveType || "")) return;
+        for (var i = 0; i < URLS.length; i++) {
+          (function (u) {
+            try {
+              fetch(u, { cache: "default" }).then(function (r) {
+                if (r && r.ok) return r.arrayBuffer();
+              }).catch(function () { });
+            } catch (e) { /* ignore */ }
+          })(URLS[i]);
+        }
+      }
+      function schedule() {
+        if ("requestIdleCallback" in window) requestIdleCallback(run, { timeout: 4000 });
+        else setTimeout(run, 2000);
+      }
+      if (document.readyState === "complete") schedule();
+      else window.addEventListener("load", schedule);
+    })();
+  </script>
+</body>
+
+</html>

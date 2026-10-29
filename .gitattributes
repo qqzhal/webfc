@@ -1,0 +1,30 @@
+# 统一换行：仓库里按 LF 存，Windows 检出按系统默认（网页内容不受影响）
+* text=auto
+
+# 脚本按各自平台固定
+*.sh   text eol=lf
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# 二进制：禁止换行转换，避免 ROM / 核心 / cht 被改字节
+*.nes   binary
+*.fds   binary
+*.unf   binary
+*.unif  binary
+*.nsf   binary
+*.data  binary
+*.wasm  binary
+*.zip   binary
+*.7z    binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.cht   binary
+*.CHT   binary
+*.sav   binary
+*.state binary

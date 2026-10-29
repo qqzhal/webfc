@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>音乐配置编辑器 · music_config.js</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --card: #10161f;
+    --card2: #141c28;
+    --line: rgba(72, 120, 220, .25);
+    --line2: rgba(72, 120, 220, .45);
+    --txt: #e8eef5;
+    --dim: #8fa3b8;
+    --dim2: #5c7089;
+    --blue: #2e6bff;
+    --green: #2f9e6e;
+    --red: #b3452e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--txt);
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    font-size: 14px; display: flex; flex-direction: column;
+  }
+  header {
+    padding: 12px 16px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--card);
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 700; }
+  header .sub { font-size: 12px; color: var(--dim2); }
+  header .spacer { flex: 1; }
+  .toolbar {
+    padding: 10px 16px; border-bottom: 1px solid var(--line);
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    background: var(--card);
+  }
+  button {
+    padding: 7px 12px; border-radius: 7px; border: 1px solid var(--line2);
+    background: var(--card2); color: var(--txt); font-size: 13px; cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover { border-color: #58a6ff; }
+  button.primary { background: linear-gradient(135deg, #2e6bff, #1e4fd6); border-color: transparent; font-weight: 600; }
+  button.ok { background: var(--green); border-color: transparent; }
+  button.warn { background: var(--red); border-color: transparent; }
+  button:disabled { opacity: .5; cursor: default; }
+  select, input[type="text"], input[type="search"] {
+    padding: 7px 9px; border-radius: 7px; border: 1px solid var(--line2);
+    background: var(--card2); color: var(--txt); font-size: 13px; outline: none;
+  }
+  input[type="search"] { width: 240px; }
+  select:focus, input:focus { border-color: #58a6ff; }
+  .meta { font-size: 12px; color: var(--dim2); margin-left: auto; }
+  main { flex: 1; min-height: 0; overflow: auto; padding: 0 0 40px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    position: sticky; top: 0; z-index: 2; background: #0d131c; color: var(--dim);
+    font-size: 12px; font-weight: 600; text-align: left; padding: 8px 6px;
+    border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  tbody td { padding: 3px 4px; border-bottom: 1px solid rgba(72,120,220,.10); vertical-align: middle; }
+  tbody tr:hover { background: rgba(72,120,220,.07); }
+  tbody td input, tbody td select {
+    font-family: inherit; width: 100%; padding: 5px 7px; font-size: 13px; background: transparent; border: 1px solid transparent;
+  }
+  tbody td input:hover, tbody td select:hover { border-color: var(--line); }
+  tbody td input:focus, tbody td select:focus { border-color: #58a6ff; background: #0b1220; }
+  .col-code { width: 64px; }
+  .col-index { width: 78px; }
+  .col-type { width: 92px; }
+  .col-name { width: 170px; }
+  .col-act { width: 46px; text-align: center; }
+  .col-path { min-width: 200px; }
+  .col-note { min-width: 240px; }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+  .dup { background: rgba(224, 85, 85, .12); }
+  .play {
+    width: 28px; height: 26px; padding: 0; border-radius: 6px; line-height: 24px;
+    color: #8fd6a8; border-color: rgba(46,158,110,.4); background: transparent;
+  }
+  .play:hover { background: rgba(46,158,110,.18); border-color: #2f9e6e; }
+  tr.playing { background: rgba(46,158,110,.10); }
+  .col-play { width: 52px; text-align: center; }
+  .del {
+    width: 26px; height: 26px; padding: 0; border-radius: 6px; line-height: 24px;
+    color: #e07a6a; border-color: rgba(224,85,85,.35); background: transparent;
+  }
+  .del:hover { background: rgba(224,85,85,.18); border-color: #e05555; }
+  .status {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    padding: 9px 16px; border-radius: 8px; font-size: 13px; display: none;
+    background: #1b2532; border: 1px solid var(--line); box-shadow: 0 8px 26px rgba(0,0,0,.5);
+    max-width: 80vw;
+  }
+  .status.ok { border-color: var(--green); }
+  .status.err { border-color: #e05555; }
+  .empty { padding: 40px 16px; text-align: center; color: var(--dim2); }
+  .hint { font-size: 12px; color: var(--dim2); }
+  dialog { border: 1px solid var(--line2); border-radius: 12px; background: var(--card); color: var(--txt);
+           padding: 0; width: min(900px, 92vw); max-height: 82vh; }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog .dlg-head { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: center; }
+  dialog .dlg-head strong { font-size: 14px; }
+  dialog textarea {
+    width: 100%; height: 56vh; margin: 0; padding: 14px 16px; border: 0; resize: none;
+    background: #0b1220; color: #cfe2ff; font-family: Consolas, monospace; font-size: 12.5px; outline: none;
+  }
+  dialog .dlg-foot { padding: 10px 16px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>音乐配置编辑器</h1>
+  <span class="sub">编辑 <code>music_config.js</code>（EC 声音代码 → NSF 曲目映射）</span>
+  <span class="spacer"></span>
+  <span id="loadedInfo" class="sub">未加载</span>
+</header>
+
+<div class="toolbar">
+  <button id="reloadBtn" type="button">重新加载配置</button>
+  <select id="mapSelect" title="选择要编辑的映射表">
+    <option value="musicConfig">musicConfig（当前使用）</option>
+    <option value="musicConfigback">musicConfigback（备份）</option>
+  </select>
+  <input id="searchInput" type="search" placeholder="搜索：代码 / 路径 / 备注…">
+  <button id="addRowBtn" type="button">＋ 添加一行</button>
+  <button id="sortBtn" type="button" title="按代码的十六进制排序">按代码排序</button>
+  <button id="stopPlayBtn" type="button" title="停止试听">⏹ 停止</button>
+  <button id="previewBtn" type="button">预览 / 复制</button>
+  <button id="exportBtn" type="button" class="primary">下载 music_config.js</button>
+  <span class="meta" id="metaInfo"></span>
+</div>
+
+<main>
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th class="col-code">代码</th>
+        <th class="col-path">路径</th>
+        <th class="col-index">索引</th>
+        <th class="col-type">类型</th>
+        <th class="col-name">变量名</th>
+        <th class="col-note">备注</th>
+        <th class="col-play">试听</th>
+        <th class="col-act">删</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div id="emptyBox" class="empty" style="display:none">没有匹配的条目</div>
+</main>
+
+<div id="status" class="status"></div>
+
+<dialog id="previewDlg">
+  <div class="dlg-head">
+    <strong>导出的 music_config.js</strong>
+    <span class="hint" id="previewMeta"></span>
+    <span style="flex:1"></span>
+    <button id="copyBtn" type="button" class="ok">复制</button>
+    <button id="closeDlgBtn" type="button">关闭</button>
+  </div>
+  <textarea id="previewText" spellcheck="false" readonly></textarea>
+  <div class="dlg-foot">
+    <button id="dlgDownloadBtn" type="button" class="primary">下载文件</button>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  'use strict';
+
+  var KEY_ORDER = ['path', 'index', 'type', 'name', 'note'];
+  var CONFIG_URL = 'music_config.js';
+
+  var state = {
+    maps: { musicConfig: [], musicConfigback: [] },
+    current: 'musicConfig',
+    filter: '',
+    loaded: false,
+    playing: null
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var tbody = $('tbody');
+
+  function showStatus(msg, cls) {
+    var el = $('status');
+    el.textContent = msg;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+    el.style.display = 'block';
+    clearTimeout(showStatus._t);
+    showStatus._t = setTimeout(function () { el.style.display = 'none'; }, 3200);
+  }
+
+  function hx(code) { return parseInt(code, 16) || 0; }
+
+  /* ---------- 读取 music_config.js ----------
+     文件是 JS（window.musicConfig / musicConfigback 两个 Map），不是 JSON：
+     取源码 → 用 Function 在受控作用域里跑一遍 → 读回两个 Map。
+     musicConfigback 在文件里是裸赋值，先改写成 window.musicConfigback 再执行。 */
+  function parseConfigSource(src) {
+    var patched = String(src).replace(/(^|[\r\n;])\s*musicConfigback\s*=/g, '$1window.musicConfigback =');
+    var fn = new Function('window', patched + '\n;return {main: window.musicConfig || null, back: window.musicConfigback || null};');
+    var sandbox = {};
+    var res = fn.call(sandbox, sandbox);
+    function toArray(map) {
+      if (!map || typeof map.forEach !== 'function') return [];
+      var out = [];
+      map.forEach(function (v, k) {
+        var item = { code: String(k) };
+        KEY_ORDER.forEach(function (key) { if (v && v[key] !== undefined) item[key] = v[key]; });
+        // 记录原本是否带 name 键：导出时保持原样，不凭空增删字段
+        item._hasName = !!(v && Object.prototype.hasOwnProperty.call(v, 'name'));
+        out.push(item);
+      });
+      return out;
+    }
+    return { musicConfig: toArray(res.main), musicConfigback: toArray(res.back) };
+  }
+
+  async function loadConfig() {
+    $('loadedInfo').textContent = '加载中…';
+    try {
+      var res = await fetch(CONFIG_URL + '?t=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var src = await res.text();
+      var parsed = parseConfigSource(src);
+      state.maps = parsed;
+      state.loaded = true;
+      state.current = 'musicConfig';
+      $('mapSelect').value = 'musicConfig';
+      $('loadedInfo').textContent = '已加载：musicConfig ' + parsed.musicConfig.length +
+        ' 条，musicConfigback ' + parsed.musicConfigback.length + ' 条';
+      render();
+      showStatus('配置已加载', 'ok');
+    } catch (e) {
+      $('loadedInfo').textContent = '加载失败';
+      showStatus('加载失败：' + (e && e.message ? e.message : e), 'err');
+    }
+  }
+
+  /* ---------- 渲染 ---------- */
+  function currentItems() { return state.maps[state.current] || []; }
+
+  function matches(item) {
+    if (!state.filter) return true;
+    var f = state.filter.toLowerCase();
+    return String(item.code).toLowerCase().indexOf(f) >= 0 ||
+      String(item.path || '').toLowerCase().indexOf(f) >= 0 ||
+      String(item.note || '').toLowerCase().indexOf(f) >= 0 ||
+      String(item.name || '').toLowerCase().indexOf(f) >= 0;
+  }
+
+  function render() {
+    var items = currentItems();
+    var dupMap = {};
+    items.forEach(function (it) { dupMap[it.code] = (dupMap[it.code] || 0) + 1; });
+
+    tbody.innerHTML = '';
+    var shown = 0;
+    items.forEach(function (item, idx) {
+      if (!matches(item)) return;
+      shown++;
+      var tr = document.createElement('tr');
+      if (dupMap[item.code] > 1) tr.className = 'dup';
+      tr.dataset.idx = String(idx);
+
+      tr.appendChild(cell('code', item.code, 'col-code mono'));
+      tr.appendChild(cell('path', item.path, 'col-path mono'));
+      tr.appendChild(cell('index', item.index, 'col-index mono'));
+      tr.appendChild(typeCell(item.type));
+      tr.appendChild(cell('name', item.name, 'col-name mono'));
+      tr.appendChild(cell('note', item.note, 'col-note'));
+
+      if (state.playing && state.playing.code === item.code) tr.classList.add('playing');
+
+      var tdPlay = document.createElement('td');
+      tdPlay.className = 'col-play';
+      var pbtn = document.createElement('button');
+      pbtn.type = 'button'; pbtn.className = 'play'; pbtn.textContent = '▶'; pbtn.title = '试听这一条（GME 播放 NSF）';
+      pbtn.addEventListener('click', function () { togglePlay(item, pbtn); });
+      tdPlay.appendChild(pbtn);
+      tr.appendChild(tdPlay);
+
+      var td = document.createElement('td');
+      td.className = 'col-act';
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'del'; btn.textContent = '×'; btn.title = '删除这一行';
+      btn.addEventListener('click', function () { deleteItem(idx); });
+      td.appendChild(btn);
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    });
+
+    $('emptyBox').style.display = shown ? 'none' : 'block';
+    var dupCount = Object.keys(dupMap).filter(function (k) { return dupMap[k] > 1; }).length;
+    $('metaInfo').textContent = state.current + '：' + items.length + ' 条' +
+      (shown !== items.length ? '（显示 ' + shown + '）' : '') +
+      (dupCount ? '，重复代码 ' + dupCount + ' 个' : '');
+  }
+
+  function cell(key, value, cls) {
+    var td = document.createElement('td');
+    td.className = cls || '';
+    var el = document.createElement('input');
+    el.type = 'text';
+    el.dataset.key = key;
+    el.className = 'inp' + (cls && cls.indexOf('mono') >= 0 ? ' mono' : '');
+    el.value = value === undefined || value === null ? '' : String(value);
+    el.addEventListener('input', function () {
+      var tr = el.closest('tr');
+      var idx = parseInt(tr.dataset.idx, 10);
+      var item = currentItems()[idx];
+      if (!item) return;
+      if (key === 'code') item.code = el.value.trim();
+      else if (key === 'index') {
+        var n = parseInt(el.value, 10);
+        item.index = isNaN(n) ? 0 : n;
+      } else {
+        item[key] = el.value;
+        if (key === 'name' && String(el.value) !== '') item._hasName = true;
+      }
+    });
+    el.addEventListener('change', function () { if (key === 'code') render(); });
+    td.appendChild(el);
+    return td;
+  }
+
+  function typeCell(value) {
+    var td = document.createElement('td');
+    td.className = 'col-type';
+    var sel = document.createElement('select');
+    ['bgm', 'se'].forEach(function (t) {
+      var o = document.createElement('option');
+      o.value = t; o.textContent = t;
+      sel.appendChild(o);
+    });
+    var cur = value === undefined || value === null || value === '' ? 'bgm' : String(value);
+    if (cur !== 'bgm' && cur !== 'se') {
+      var o2 = document.createElement('option');
+      o2.value = cur; o2.textContent = cur;
+      sel.appendChild(o2);
+    }
+    sel.value = cur;
+    sel.addEventListener('change', function () {
+      var tr = sel.closest('tr');
+      var item = currentItems()[parseInt(tr.dataset.idx, 10)];
+      if (item) item.type = sel.value;
+    });
+    td.appendChild(sel);
+    return td;
+  }
+
+  /* ---------- 试听（GME / game-music-emu wasm） ----------
+     和左侧 CT2 音乐播放器用同一份 js/gme_player.js：
+     文件是 emscripten 非模块构建（顶层 Module / HEAPU8），fetch 源码后用 new Function 在隔离作用域里拿到 M。
+     配置里的 path 是相对 emu/ 的（如 music/ct2_def.js），本页在 emu/music/，所以要剥掉开头的 music/ 再解析。 */
+  var gme = { Module: null, ctx: null, node: null, bufferPtr: 0, dataPtr: 0, loading: null };
+  var nsfCache = {};
+
+  function resolveAudioPath(path) {
+    var p = String(path || '').replace(/^\.?\//, '');
+    if (p.indexOf('music/') === 0) p = p.slice('music/'.length);
+    return p;
+  }
+
+  function ensureGme() {
+    if (gme.Module) return Promise.resolve(gme.Module);
+    if (gme.loading) return gme.loading;
+    gme.loading = fetch('../js/gme_player.js', { cache: 'force-cache' })
+      .then(function (r) { if (!r.ok) throw new Error('gme_player.js HTTP ' + r.status); return r.text(); })
+      .then(function (src) {
+        var factory = new Function(src + '\nreturn { M: Module, heap: function(){ return HEAPU8; }, heap16: function(){ return HEAP16; } };');
+        var holder = factory();
+        gme.Module = holder.M;
+        gme.heap = holder.heap;
+        gme.heap16 = holder.heap16;
+        return new Promise(function (resolve, reject) {
+          var t0 = Date.now();
+          (function wait() {
+            if (gme.Module && gme.Module._init_gme && gme.Module.calledRun) return resolve();
+            if (Date.now() - t0 > 20000) return reject(new Error('GME 初始化超时'));
+            setTimeout(wait, 50);
+          })();
+        });
+      })
+      .then(function () {
+        var M = gme.Module;
+        gme.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        gme.bufferPtr = M.ccall('get_buffer', 'number', [], []);
+        gme.dataPtr = M.ccall('get_data_buffer', 'number', [], []);
+        return M;
+      });
+    return gme.loading;
+  }
+
+  function loadNsf(path, varName) {
+    var file = resolveAudioPath(path);
+    var key = file + '|' + (varName || '');
+    if (nsfCache[key]) return Promise.resolve(nsfCache[key]);
+    var id = 'editor-nsf-' + encodeURIComponent(file);
+    var before = {};
+    try { Object.keys(window).forEach(function (k) { before[k] = 1; }); } catch (e) {}
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = file + '?t=' + Date.now();
+      s.id = id;
+      s.onload = function () {
+        var base = file.split('/').pop().replace(/\.js$/i, '');
+        var names = [];
+        if (varName) names.push(varName);
+        if (base) names.push(base);
+        var data = null;
+        for (var i = 0; i < names.length; i++) {
+          if (window[names[i]]) { data = window[names[i]]; break; }
+        }
+        if (!data) {
+          try {
+            var cands = Object.keys(window).filter(function (k) { return !before[k]; });
+            for (var j = 0; j < cands.length; j++) {
+              var v = window[cands[j]];
+              if (v && (v instanceof Uint8Array || Array.isArray(v)) && v.length > 128) { data = v; break; }
+            }
+          } catch (e) {}
+        }
+        if (!data) { reject(new Error('没找到 NSF 数据（' + file + '）')); return; }
+        var bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+        nsfCache[key] = bytes;
+        resolve(bytes);
+      };
+      s.onerror = function () { reject(new Error('加载失败 ' + file)); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function stopPlay() {
+    if (gme.node) {
+      try { gme.node.disconnect(); } catch (e) {}
+      gme.node = null;
+    }
+    state.playing = null;
+    var rows = tbody.querySelectorAll('tr');
+    for (var i = 0; i < rows.length; i++) rows[i].classList.remove('playing');
+  }
+
+  function togglePlay(item, btn) {
+    if (state.playing && state.playing.code === item.code) { stopPlay(); return; }
+    stopPlay();
+    btn.disabled = true;
+    showStatus('准备试听 ' + item.code + ' …');
+    Promise.all([ensureGme(), loadNsf(item.path, item.name)]).then(function (arr) {
+      var M = arr[0], bytes = arr[1];
+      if (gme.ctx.state === 'suspended') gme.ctx.resume();
+      var res = M.ccall('resize_data_buffer', 'number', ['number'], [bytes.length]);
+      if (res !== 0) throw new Error('resize_data_buffer 失败');
+      gme.dataPtr = M.ccall('get_data_buffer', 'number', [], []);
+      var heap = gme.heap();
+      for (var i = 0; i < bytes.length; i++) heap[gme.dataPtr + i] = bytes[i];
+      var track = parseInt(item.index, 10) || 0;
+      var ok = M.ccall('init_gme', 'number', ['number', 'number', 'number'], [bytes.length, track, gme.ctx.sampleRate]);
+      if (ok !== 0) throw new Error('init_gme 失败（' + ok + '）');
+      gme.bufferPtr = M.ccall('get_buffer', 'number', [], []);
+      startNode();
+      state.playing = { code: item.code };
+      var tr = btn.closest('tr');
+      if (tr) tr.classList.add('playing');
+      showStatus('试听 ' + item.code + '：' + (item.note || item.name || '') + '（索引 ' + track + '）', 'ok');
+    }).catch(function (e) {
+      console.error('[editor] 试听失败', e);
+      showStatus('试听失败：' + (e && e.message ? e.message : e), 'err');
+    }).then(function () {
+      btn.disabled = false;
+    });
+  }
+
+  function startNode() {
+    var M = gme.Module;
+    var size = 4096;
+    var node = gme.ctx.createScriptProcessor(size, 0, 2);
+    node.onaudioprocess = function (ev) {
+      var out = ev.outputBuffer, L = out.getChannelData(0), R = out.getChannelData(1);
+      var r;
+      try { r = M.ccall('play_gme', 'number', ['number'], [size]); } catch (e) { r = -1; }
+      if (r !== 0) { stopPlay(); return; }
+      gme.frames = (gme.frames || 0) + 1;
+      var buf;
+      try { buf = gme.heap16 ? gme.heap16() : null; } catch (e) { buf = null; }
+      var start = (gme.bufferPtr || 0) >> 1;
+      var data;
+      try {
+        data = buf ? buf.subarray(start, start + size * 2)
+                   : new Int16Array(gme.heap().buffer, gme.bufferPtr, size * 2);
+      } catch (e) { return; }
+      for (var i = 0; i < size; i++) {
+        var l = data[i * 2] / 32767, rr = data[i * 2 + 1] / 32767;
+        L[i] = l < -1 ? -1 : (l > 1 ? 1 : l);
+        R[i] = rr < -1 ? -1 : (rr > 1 ? 1 : rr);
+      }
+    };
+    var gain = gme.ctx.createGain();
+    gain.gain.value = 0.9;
+    node.connect(gain);
+    gain.connect(gme.ctx.destination);
+    gme.node = node;
+  }
+  /* ---------- 增删排序 ---------- */
+  function nextCode() {
+    var used = {};
+    currentItems().forEach(function (it) { used[hx(it.code)] = true; });
+    for (var i = 1; i < 256; i++) if (!used[i]) return i.toString(16).toUpperCase().padStart(2, '0');
+    return 'FF';
+  }
+
+  function addItem() {
+    var code = nextCode();
+    currentItems().push({ code: code, path: 'music/ct2_def.js', index: 0, type: 'bgm', name: '', note: '', _hasName: false });
+    state.filter = '';
+    $('searchInput').value = '';
+    render();
+    var rows = tbody.querySelectorAll('tr');
+    for (var i = 0; i < rows.length; i++) {
+      var inp = rows[i].querySelector('input');
+      if (inp && inp.value === code) {
+        rows[i].scrollIntoView({ block: 'center' });
+        inp.focus(); inp.select();
+        break;
+      }
+    }
+    showStatus('已添加代码 ' + code, 'ok');
+  }
+
+  function deleteItem(idx) {
+    var item = currentItems()[idx];
+    if (!item) return;
+    if (!confirm('删除代码 ' + item.code + ' 这条配置？')) return;
+    if (state.playing && state.playing.code === item.code) stopPlay();
+    currentItems().splice(idx, 1);
+    render();
+    showStatus('已删除代码 ' + item.code, 'ok');
+  }
+
+  function sortItems() {
+    currentItems().sort(function (a, b) { return hx(a.code) - hx(b.code); });
+    render();
+    showStatus('已按代码排序（导出时会按此顺序）', 'ok');
+  }
+
+  /* ---------- 导出 ----------
+     输出与 music_config.js 相同风格：
+       window.musicConfig = new Map(([
+       	["03", {"path":"...","index":40,"type":"se","name":"","note":""}],
+       ...
+       ]));
+     对象键固定 path,index,type,name,note（name 为空时省略该键）。 */
+  function buildEntry(item) {
+    var parts = [];
+    parts.push('"path":' + JSON.stringify(item.path || ''));
+    parts.push('"index":' + (Number.isFinite(item.index) ? item.index : 0));
+    parts.push('"type":' + JSON.stringify(item.type || 'bgm'));
+    if (item._hasName || (item.name !== undefined && item.name !== null && String(item.name) !== '')) {
+      parts.push('"name":' + JSON.stringify(item.name === undefined || item.name === null ? '' : String(item.name)));
+    }
+    parts.push('"note":' + JSON.stringify(item.note === undefined || item.note === null ? '' : String(item.note)));
+    return '["' + String(item.code) + '", {' + parts.join(',') + '}]';
+  }
+
+  function buildMapText(items) {
+    if (!items.length) return '([])';
+    var lines = items.map(function (it) { return '\t' + buildEntry(it) + ','; });
+    lines[lines.length - 1] = lines[lines.length - 1].replace(/,$/, '');
+    return '([\n' + lines.join('\n') + '\n])';
+  }
+
+  function buildExport() {
+    var main = buildMapText(state.maps.musicConfig || []);
+    var back = buildMapText(state.maps.musicConfigback || []);
+    return [
+      '// 自定义音乐映射配置',
+      '// 格式: 代码 -> {path: 文件路径, index: 索引, type: 类型(bgm/se), name: 变量名, note: 备注}',
+      '// 字段顺序统一为 path, index, type, name, note（note 放最后，便于阅读）',
+      '// 这个文件会在页面加载时自动覆盖默认配置',
+      '',
+      '// 如果你想修改配置，只需要编辑这个文件',
+      '// 代码会自动检测并使用这里的配置',
+      '// 可以添加不存在的代码作为背景音乐或者音效',
+      '',
+      '// 示例：使用 name 字段指定变量名',
+      '// ["81", { path: "music/custom.js", index: 0, type: "bgm", name: "myCustomMusicData", note: "自定义音乐示例" }],',
+      '',
+      'window.musicConfig = new Map(' + main + ');',
+      '',
+      '',
+      '// 配置备份',
+      'musicConfigback = new Map(' + back + ');',
+      ''
+    ].join('\n');
+  }
+
+  function download(text) {
+    var blob = new Blob([text], { type: 'text/javascript;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'music_config.js';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function openPreview() {
+    var text = buildExport();
+    $('previewText').value = text;
+    $('previewMeta').textContent = 'musicConfig ' + (state.maps.musicConfig || []).length +
+      ' 条 / musicConfigback ' + (state.maps.musicConfigback || []).length + ' 条';
+    if (typeof $('previewDlg').showModal === 'function') $('previewDlg').showModal();
+    else $('previewDlg').setAttribute('open', '');
+  }
+
+  /* ---------- 事件 ---------- */
+  $('reloadBtn').addEventListener('click', loadConfig);
+  $('mapSelect').addEventListener('change', function () {
+    stopPlay();
+    state.current = $('mapSelect').value;
+    render();
+  });
+  $('searchInput').addEventListener('input', function () {
+    state.filter = this.value.trim();
+    render();
+  });
+  $('addRowBtn').addEventListener('click', addItem);
+  $('sortBtn').addEventListener('click', sortItems);
+  $('previewBtn').addEventListener('click', openPreview);
+  $('exportBtn').addEventListener('click', function () {
+    download(buildExport());
+    showStatus('已下载 music_config.js（替换 emu/music/ 下的同名文件）', 'ok');
+  });
+  $('closeDlgBtn').addEventListener('click', function () { $('previewDlg').close(); });
+  $('dlgDownloadBtn').addEventListener('click', function () {
+    download(buildExport());
+    showStatus('已下载 music_config.js', 'ok');
+  });
+  $('copyBtn').addEventListener('click', async function () {
+    try {
+      await navigator.clipboard.writeText($('previewText').value);
+      showStatus('已复制到剪贴板', 'ok');
+    } catch (e) {
+      $('previewText').select();
+      showStatus('复制失败，已全选，请按 Ctrl+C', 'err');
+    }
+  });
+
+  // 便于控制台/自动化校验
+  window.MusicEditor = {
+    state: state,
+    buildExport: buildExport,
+    load: loadConfig,
+    parseConfigSource: parseConfigSource,
+    gme: gme,
+    stopPlay: stopPlay
+  };
+
+  loadConfig();
+})();
+</script>
+</body>
+</html>
