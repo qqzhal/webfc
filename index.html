@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>自用FC游戏中心</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin:0; padding:24px 16px; background:#0a0e14; color:#e8eef5;
+           font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif; }
+    .wrap { max-width:640px; margin:0 auto; }
+    h1 { font-size:22px; margin:0 0 4px; background:linear-gradient(135deg,#58a6ff,#2e6bff);
+         -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    .sub { font-size:13px; color:#8fa3b8; margin:0 0 20px; }
+    .card { background:rgba(16,22,32,.92); border:1px solid rgba(72,120,220,.25); border-radius:12px;
+            padding:20px; margin-bottom:16px; }
+    .card h2 { font-size:15px; margin:0 0 12px; color:#c6d4e2; }
+    .btn-primary { display:block; text-align:center; padding:13px 16px; border:none; border-radius:10px;
+                   background:linear-gradient(135deg,#2e6bff,#1e4fd6); color:#fff; font-size:16px; font-weight:600;
+                   cursor:pointer; text-decoration:none; }
+    .btn-primary:hover { background:#1e46d6; }
+    .hint { font-size:13px; line-height:1.7; color:#8fa3b8; margin:12px 0 0; }
+    ul.gamelist { list-style:none; margin:0; padding:0; max-height:320px; overflow:auto; }
+    ul.gamelist li { display:flex; justify-content:space-between; gap:12px; padding:8px 10px;
+                     border-radius:6px; font-size:14px; }
+    ul.gamelist li:nth-child(odd) { background:#141c28; }
+    .size { color:#5c7089; font-size:12px; white-space:nowrap; align-self:center; }
+    .empty { font-size:13px; color:#8fa3b8; }
+    .field { margin-bottom:14px; }
+    .field label { display:block; font-size:13px; color:#8fa3b8; margin-bottom:6px; }
+    .field input { width:100%; padding:10px 12px; border:1px solid rgba(72,120,220,.35); border-radius:8px;
+                   background:#141c28; color:#e8eef5; font-size:14px; outline:none; transition:border-color .15s, box-shadow .15s; }
+    .field input:focus { border-color:#58a6ff; box-shadow:0 0 0 2px rgba(88,166,255,.15); }
+    .field input::placeholder { color:#5c7089; }
+    .btns { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+    .btn { padding:9px 18px; border:none; border-radius:8px; color:#fff; font-size:13.5px; font-weight:600; cursor:pointer;
+           background:linear-gradient(135deg,#2f9e6e,#1e7d55); transition:filter .15s, transform .08s; }
+    .btn:hover { filter:brightness(1.15); }
+    .btn:active { transform:scale(.97); }
+    .btn.gray { background:#2a3a52; }
+    .btn.gray:hover { background:#364a68; filter:none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>自用FC游戏中心</h1>
+    <p class="sub">FC 模拟器</p>
+
+    <div class="card">
+      <a class="btn-primary" href="emu/index.html">进入模拟器玩游戏</a>
+      <p class="hint">
+        缓存过的游戏在模拟器首页「缓存的游戏」中点击即可游玩（支持槽位存档、金手指、云同步）。<br>
+        支持拖拽 .nes / .fds / .zip 直接载入，触屏设备建议横屏。
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>本地缓存的游戏</h2>
+      <ul class="gamelist" id="gameList"></ul>
+      <p class="empty" id="emptyTip" style="display:none;">暂无缓存游戏。可通过缓存引导页写入后刷新本页（需访问口令）。</p>
+    </div>
+
+    <div class="card">
+      <h2>云同步设置</h2>
+      <div class="field">
+        <label for="cfgUrl">云同步地址</label>
+        <input id="cfgUrl" type="text" placeholder="云同步接口地址" spellcheck="false">
+        <div class="btns">
+          <button id="saveUrl" type="button" class="btn">保存地址</button>
+          <button id="resetUrl" type="button" class="btn gray">恢复默认</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="cfgToken">同步秘钥</label>
+        <input id="cfgToken" type="text" placeholder="同步秘钥（访问口令）" spellcheck="false">
+        <div class="btns">
+          <button id="saveToken" type="button" class="btn">保存秘钥</button>
+        </div>
+      </div>
+      <p class="hint" id="cfgStatus">多设备同步：各设备把地址统一设为外网网址，秘钥保持一致即可互通。</p>
+    </div>
+
+  </div>
+
+  <script>
+    // ---------- 云同步设置维护（localStorage 与模拟器/同步页共享） ----------
+    (function () {
+      var urlInput = document.getElementById('cfgUrl');
+      var tokenInput = document.getElementById('cfgToken');
+      var statusEl = document.getElementById('cfgStatus');
+      var baseStatus = statusEl.textContent;
+
+      function get(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+      function set(k, v) { localStorage.setItem(k, v); }
+      function del(k) { localStorage.removeItem(k); }
+      function say(text, ok) {
+        statusEl.textContent = text + '　' + baseStatus;
+        statusEl.style.color = ok ? '#6fdba0' : '#e0a06a';
+      }
+      function refresh() {
+        var u = get('cloudSyncUrl');
+        urlInput.value = u;
+        urlInput.placeholder = u ? '' : '云同步接口地址';
+        // 秘钥有值就直接回显在输入框里，方便查看/修改（不再显示位数）
+        tokenInput.value = get('syncToken');
+        tokenInput.placeholder = '同步秘钥（访问口令）';
+      }
+
+      document.getElementById('saveUrl').addEventListener('click', function () {
+        var v = urlInput.value.trim();
+        if (v && !/^https?:\/\//i.test(v)) { say('地址需要以 http:// 或 https:// 开头。', false); return; }
+        if (v) set('cloudSyncUrl', v); else del('cloudSyncUrl');
+        refresh();
+        say(v ? '云同步地址已保存：' + v : '已恢复默认地址。', true);
+      });
+      document.getElementById('resetUrl').addEventListener('click', function () {
+        urlInput.value = '';
+        del('cloudSyncUrl');
+        refresh();
+        say('已恢复默认地址。', true);
+      });
+      document.getElementById('saveToken').addEventListener('click', function () {
+        var v = tokenInput.value.trim();
+        if (!v) { say('秘钥不能为空。', false); return; }
+        set('syncToken', v);
+        refresh();
+        say('同步秘钥已保存（本浏览器）。', true);
+      });
+      refresh();
+    })();
+  </script>
+
+  <script>
+    (function () {
+      // 与缓存引导页同一套缓存：IndexedDB GameSavesDB / RomStore，记录 {id, name, data}
+      var listEl = document.getElementById('gameList');
+      var emptyEl = document.getElementById('emptyTip');
+
+      function fmtSize(n) {
+        if (n >= 1048576) return (n / 1048576).toFixed(2) + ' MB';
+        if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+        return n + ' B';
+      }
+
+      function openDB() {
+        return new Promise(function (resolve, reject) {
+          function hook(req) {
+            req.onupgradeneeded = function (e) {
+              var db = e.target.result;
+              if (!db.objectStoreNames.contains('RomStore')) {
+                db.createObjectStore('RomStore', { keyPath: 'id' });
+              }
+            };
+            return req;
+          }
+          // 先不带版本号探测；库已存在但缺 RomStore 时升一版重开强制建表
+          var probe = hook(indexedDB.open('GameSavesDB'));
+          probe.onsuccess = function (e) {
+            var db = e.target.result;
+            if (db.objectStoreNames.contains('RomStore')) { resolve(db); return; }
+            var next = db.version + 1;
+            db.close();
+            var req = hook(indexedDB.open('GameSavesDB', next));
+            req.onsuccess = function (ev) { resolve(ev.target.result); };
+            req.onerror = function () { reject(); };
+          };
+          probe.onerror = function () { reject(); };
+        });
+      }
+
+      if (typeof indexedDB === 'undefined') {
+        emptyEl.textContent = '当前浏览器不支持 IndexedDB，无法读取缓存。';
+        emptyEl.style.display = 'block';
+        return;
+      }
+
+      openDB().then(function (db) {
+        var tx = db.transaction(['RomStore'], 'readonly');
+        var store = tx.objectStore('RomStore');
+        var count = 0;
+        var req = store.openCursor();
+        req.onsuccess = function (e) {
+          var cursor = e.target.result;
+          if (!cursor) {
+            if (count === 0) emptyEl.style.display = 'block';
+            return;
+          }
+          var rec = cursor.value;
+          if (rec && rec.data) {
+            var li = document.createElement('li');
+            var name = document.createElement('span');
+            name.textContent = rec.name || rec.id;
+            var size = document.createElement('span');
+            size.className = 'size';
+            size.textContent = fmtSize(rec.data.byteLength || rec.data.length || 0);
+            li.appendChild(name);
+            li.appendChild(size);
+            listEl.appendChild(li);
+            count++;
+          }
+          cursor.continue();
+        };
+      }).catch(function () {
+        emptyEl.textContent = '读取本地缓存失败（浏览器隐私模式或权限受限）。';
+        emptyEl.style.display = 'block';
+      });
+    })();
+  </script>
+</body>
+</html>

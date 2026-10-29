@@ -1,0 +1,4 @@
+.publish-marker
+*.log
+Thumbs.db
+desktop.ini
